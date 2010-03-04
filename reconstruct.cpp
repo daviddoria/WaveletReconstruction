@@ -7,7 +7,7 @@
 #include <fstream>
 #include <ctime>
 #include <float.h>
-#include <GL/glut.h>
+//#include <GL/glut.h>
 
 using namespace std;
 
