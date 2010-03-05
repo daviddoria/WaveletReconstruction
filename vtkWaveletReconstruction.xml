@@ -1,0 +1,38 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="filters">
+    <!-- ================================================================== -->
+    <SourceProxy name="WaveletReconstruction" class="vtkWaveletReconstruction" label="WaveletReconstruction">
+      <Documentation
+         long_help="Estimate a surface from a set of oriented points."
+         short_help="Estimate a surface from a set of oriented points.">
+      </Documentation>
+
+      <InputProperty
+         name="Input"
+         command="AddInputConnection"
+         clean_command="RemoveAllInputs">
+        <ProxyGroupDomain name="groups">
+          <Group name="sources"/>
+          <Group name="filters"/>
+        </ProxyGroupDomain>
+        <DataTypeDomain name="input_type">
+          <DataType value="vtkPolyData"/>
+        </DataTypeDomain>
+        <Documentation>
+          Set the input point set.
+        </Documentation>
+      </InputProperty>
+
+#        <IntVectorProperty
+ #           name="Depth"
+  #          command="SetDepth"
+   #         number_of_elements="1"
+    #        default_values="8">
+     #    </IntVectorProperty>
+      
+
+    </SourceProxy>
+    <!-- End WaveletReconstruction -->
+  </ProxyGroup>
+  <!-- End Filters Group -->
+</ServerManagerConfiguration>
