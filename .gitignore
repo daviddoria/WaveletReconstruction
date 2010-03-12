@@ -1,0 +1,17 @@
+*.bak
+*~
+Doxyfile
+BUILD/*
+bin/*
+*.aux
+*.toc
+*.bbl
+*.blg
+*.brf
+*.log
+*.out
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.pdf
+paper/*.toc
