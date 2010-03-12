@@ -87,105 +87,113 @@ int vtkWaveletReconstruction::RequestData(vtkInformation *vtkNotUsed(request),
   streaminfo.cells_mem = 1 << max(0, g.maxDepthMem);
   streaminfo.stride = streaminfo.cells_total / streaminfo.cells_mem;
 
-  // start timing
-  clock_t t_start = clock();
-
-  if (g.do_streaming)
-  {
-    // FIRST PASS
-    printf("starting first pass\n");
-    printf("depth of tree in first pass: %d\n", g.maxDepthMem);
-    
-    vector<Process> first_pass;
-    if (g.wavelet == haar && !g.do_prune)
-      first_pass.push_back(Process(count_and_coeffs_haar_first));
-    else
-    {
-      first_pass.push_back(Process(count_points_first));
-      
-      if (g.do_prune)
-        first_pass.push_back(Process(prune));
-
-      if (g.wavelet == daub4)
-        first_pass.push_back(Process(calc_coeffs_daub4_first));
-      else if (g.wavelet == haar)
-        first_pass.push_back(Process(calc_coeffs_haar_first));
-    }
-    execPipeline(first_pass);
-
-    removeHighResAll(g.tree.root, 0);
-    
-    //printf("NODE_COUNT = %d\n", OctNode::node_count);
-
-    if (g.do_fill_in_mem)
-    {
-      if (g.wavelet == daub4)
-        fill_in_mem(tree.root.children(0,0,0).children(1,1,1), 2);
-      else if (g.wavelet == haar)
-        fill_in_mem(tree.root);
-    }
-
-    if (g.do_eval_pass)
-    {
-      if (g.wavelet == daub4)
-        eval_daub4(0, streaminfo.cells_total);
-      else if (g.wavelet == haar)
-        eval_haar(0, streaminfo.cells_total);
-    }
-
-    if (g.do_blur)
-      blur_in_memory();
-
-    average_val = calc_average();
-  }
-  clock_t t_middle = clock();
-
-  // SECOND PASS
-  printf("starting second pass\n");
   printf("depth of tree in second pass: %d\n", g.maxDepth);
   
   vector<Process> second_pass;
   if (g.wavelet == haar && !g.do_prune)
+  {
     second_pass.push_back(Process(count_and_coeffs_haar_second));
+  }
   else
   {
     second_pass.push_back(Process(count_points_second));
 
     if (g.do_prune)
+    {
       second_pass.push_back(Process(prune));
+    }
 
     if (g.wavelet == daub4)
+    {
       second_pass.push_back(Process(calc_coeffs_daub4_second));
+    }
     else if (g.wavelet == haar)
+    {
       second_pass.push_back(Process(calc_coeffs_haar_second));
+    }
   }
   
   if (g.do_eval_pass)
   {
     if (g.wavelet == daub4)
+    {
       second_pass.push_back(Process(eval_daub4));
+    }
     else if (g.wavelet == haar)
+    {
       second_pass.push_back(Process(eval_haar));
+    }
   }
 
   if (g.do_blur)
+  {
     second_pass.push_back(Process(blur_second));
+  }
   else if (!g.do_streaming)
+  {
     second_pass.push_back(Process(average_nonstreaming)); // average is calculated in blur
+  }
 
   second_pass.push_back(Process(create_surface));
 
-  execPipeline(second_pass);
+  
+  srand(1010101);
+	
+  printf("init marching cubes table\n");
+  initMCTable();
 
-  clock_t t_end = clock();
+  double bounds[6];
+  input->GetBounds(bounds);//(xmin,xmax, ymin,ymax, zmin,zmax)
+  double bx = bounds[1] - bounds[0];
+  double by = bounds[3] - bounds[2];
+  double bz = bounds[5] - bounds[4];
+  scale_factor = 1.0 / max(max(bx, by), bz);
+  
+  center[0] = bounds[0] + bx/2.0;
+  center[1] = bounds[2] + by/2.0;
+  center[2] = bounds[4] + bz/2.0;
+      // center = (g.tree.mine + g.tree.maxe) * 0.5;
+  if (g.wavelet == daub4)
+  {
+      g.tree.maxe(3,3,3);
+      g.tree.mine(-1,-1,-1);
+  }
+  else if (g.wavelet == haar)
+  {
+      g.tree.maxe(1,1,1);
+      g.tree.mine(0,0,0);
+  }
+  
+  //ext = g.tree.maxe - g.tree.mine;
 
-  // PRINT INFORMATION
-//  printf("nodes pruned: %d\n", pruned);
-  printf("average function value: %f\n", average_val);
-  printf("first pass time: %f\n\n", float(t_middle - t_start) / CLOCKS_PER_SEC);
-  printf("second pass time: %f\n\n", float(t_end - t_middle) / CLOCKS_PER_SEC);
-  printf("total time: %f\n\n", float(t_end - t_start) / CLOCKS_PER_SEC);
-      
+  //?read a point?
+  
+  //readInline(file, pts_num);
+  //readInline(file2, pts_num);
+
+  // run the pipeline
+  while (!pipeline[pipeline.size()-1].finished)
+  {
+      for (int i = 0; i < pipeline.size(); i++)
+      {
+          Process &proc = pipeline[i];
+
+          if (!proc.finished)
+          {
+              // wait ahead
+              if (i == 0 || pipeline[i-1].completed > proc.completed+streaminfo.stride || pipeline[i-1].finished)
+              {
+                  proc.func(proc.completed, proc.completed+streaminfo.stride);
+
+                  // increase the advancement counter
+                  proc.completed += streaminfo.stride;
+                  if (proc.completed >= streaminfo.cells_total)
+                      proc.finished = true;
+              }
+          }
+      }
+  }
+  
   vtkSmartPointer<vtkPoints> points = 
       vtkSmartPointer<vtkPoints>::New();
   vtkSmartPointer<vtkCellArray> triangles = 

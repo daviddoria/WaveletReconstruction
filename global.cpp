@@ -21,7 +21,8 @@ Global::Global()
 	do_above_below = true;
 	do_pts_node = false;
 	do_eval_pass = false;
-	do_streaming = true;
+//	do_streaming = true;
+    do_streaming = false;
 	do_surf_only_at_points = false;
 	do_load_points = false;
 	do_load_plane = false;
